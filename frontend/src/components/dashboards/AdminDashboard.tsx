@@ -21,6 +21,13 @@ import { convertDemographicsToPieData } from '../../../src/utils/chartUtils';
 import { AddUsherModal, AddMemberModal, EditMemberModal, AddEventModal, EditEventModal, ViewAttendanceModal, AddAdminModal, ViewUserModal } from '../../../src/components/modals';
 import EventCalendar from '../../../src/components/Calendar';
 
+// Add this helper function for Kenya time
+const getTodayInKenya = () => {
+  const now = new Date();
+  const kenyaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+  return kenyaTime.toISOString().split('T')[0];
+};
+
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'ushers' | 'admins' | 'events' | 'reports'>('overview');
@@ -52,6 +59,7 @@ const AdminDashboard: React.FC = () => {
   const [deactivatedAdmins, setDeactivatedAdmins] = useState<SystemUser[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [todayStats, setTodayStats] = useState<TodayStats[]>([]);
+  const [todayEvents, setTodayEvents] = useState<Event[]>([]); // NEW: Today's events
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [ushersTab, setUshersTab] = useState<'active' | 'deactivated'>('active');
@@ -99,6 +107,7 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      
       const [
         adminStatsData,
         memberStatsData,
@@ -106,7 +115,8 @@ const AdminDashboard: React.FC = () => {
         usersData,
         eventsData,
         todayAttendanceData,
-        adminUsersData
+        adminUsersData,
+        todayEventsData // NEW: Load today's events
       ] = await Promise.all([
         adminService.getStats(),
         memberService.getStats(),
@@ -114,8 +124,13 @@ const AdminDashboard: React.FC = () => {
         userService.getUsers({ role: 'usher', page: 1, limit: 50 }),
         eventService.getUpcomingEvents(),
         attendanceService.getTodayAttendance(),
-        userService.getUsers({ role: 'admin', page: 1, limit: 50 })
+        userService.getUsers({ role: 'admin', page: 1, limit: 50 }),
+        eventService.getTodayEvents() // NEW: Fetch today's events
       ]);
+
+      console.log('📊 Today stats:', todayAttendanceData.todayStats);
+      console.log('📅 Today events:', todayEventsData.events);
+      console.log('🇰🇪 Kenya today date:', getTodayInKenya());
 
       setAdminStats(adminStatsData);
       setMemberStats(memberStatsData);
@@ -133,6 +148,7 @@ const AdminDashboard: React.FC = () => {
       
       setUpcomingEvents(eventsData.events);
       setTodayStats(todayAttendanceData.todayStats);
+      setTodayEvents(todayEventsData.events); // NEW: Set today's events
 
       // Load all members for the members tab
       const allMembersData = await memberService.getMembers({ page: 1, limit: 50 });
@@ -169,15 +185,17 @@ const AdminDashboard: React.FC = () => {
   const loadCalendarEvents = async () => {
     try {
       setCalendarLoading(true);
-      // Load events for the next 6 months for the calendar
+      // Load events for a wider range including past events
       const startDate = new Date();
+      startDate.setFullYear(startDate.getFullYear() - 1); // Load events from past year
+      
       const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 6);
+      endDate.setMonth(endDate.getMonth() + 6); // And next 6 months
       
       const eventsData = await eventService.getEvents({
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
-        limit: 100
+        limit: 200 // Increase limit to get more events
       });
       
       setAllEvents(eventsData.events);
@@ -298,8 +316,7 @@ const AdminDashboard: React.FC = () => {
 
   const filteredMembers = allMembers.filter(member =>
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.residence.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.idNo?.includes(searchTerm)
+    member.residence.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Quick stats for the stats grid
@@ -314,12 +331,12 @@ const AdminDashboard: React.FC = () => {
       showChange: true
     },
     { 
-      label: 'Active Events', 
-      value: upcomingEvents.length.toString(), 
+      label: "Today's Events", 
+      value: todayEvents.length.toString(), 
       icon: Calendar, 
       color: 'green',
-      change: '+2',
-      description: 'Upcoming events',
+      change: todayEvents.length > 0 ? 'Active' : 'None',
+      description: 'Events scheduled today',
       showChange: false
     },
     { 
@@ -333,13 +350,15 @@ const AdminDashboard: React.FC = () => {
     },
     { 
       label: "Today's Attendance", 
-      value: todayStats.length > 0 
-        ? `${todayStats[0]?.presentCount || 0}/${todayStats[0]?.totalMembers || 0}`
+      value: todayStats.length > 0 && todayStats[0].totalMembers
+        ? `${todayStats[0].presentCount || 0}/${todayStats[0].totalMembers}`
         : '0/0', 
       icon: UserCheck, 
       color: 'purple',
-      change: '85%',
-      description: 'Attendance rate',
+      change: todayStats.length > 0 && todayStats[0].totalMembers
+        ? `${Math.round(((todayStats[0].presentCount || 0) / todayStats[0].totalMembers) * 100)}%`
+        : '0%',
+      description: 'Kenya time attendance',
       showChange: true
     },
   ];
@@ -508,32 +527,75 @@ const AdminDashboard: React.FC = () => {
               <div className="p-6 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900">Today's Overview</h3>
                 <p className="text-gray-500 text-sm mt-1">
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} 🇰🇪
                 </p>
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Today's Event Card - UPDATED */}
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
                     <Calendar className="h-8 w-8 text-blue-600 mb-3" />
                     <h4 className="font-semibold text-blue-800">Today's Event</h4>
-                    <p className="text-blue-600 mt-2 font-medium">
-                      {todayStats.length > 0 ? todayStats[0].eventName : 'No events today'}
-                    </p>
+                    {todayEvents.length > 0 ? (
+                      <div>
+                        <p className="text-blue-600 mt-2 font-medium">
+                          {todayEvents[0].name}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            todayEvents[0].eventType === 'sunday_service' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {todayEvents[0].eventType === 'sunday_service' ? 'Sunday Service' : 'Custom Event'}
+                          </span>
+                          {todayEvents[0].autoGenerated && (
+                            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                              Auto
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-blue-500 mt-2">
+                          {todayEvents.length > 1 ? `+${todayEvents.length - 1} more events` : ''}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-blue-600 mt-2 font-medium">
+                          No events today
+                        </p>
+                        <p className="text-xs text-blue-500 mt-2">
+                          Create an event to get started
+                        </p>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Attendance Progress Card */}
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
                     <UserCheck className="h-8 w-8 text-green-600 mb-3" />
                     <h4 className="font-semibold text-green-800">Attendance Progress</h4>
                     <p className="text-green-600 mt-2 font-medium">
-                      {todayStats.length > 0 
-                        ? `${todayStats[0].presentCount}/${todayStats[0].totalMembers} members (${Math.round((todayStats[0].presentCount / todayStats[0].totalMembers) * 100)}%)`
+                      {todayStats.length > 0 && todayStats[0].totalMembers
+                        ? `${todayStats[0].presentCount || 0}/${todayStats[0].totalMembers} members (${Math.round(((todayStats[0].presentCount || 0) / todayStats[0].totalMembers) * 100)}%)`
                         : 'No attendance data'
                       }
                     </p>
+                    {todayStats.length > 0 && todayStats[0].eventName && (
+                      <p className="text-xs text-green-500 mt-2">
+                        For: {todayStats[0].eventName}
+                      </p>
+                    )}
                   </div>
+
+                  {/* Active Ushers Card */}
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200">
                     <Shield className="h-8 w-8 text-orange-600 mb-3" />
                     <h4 className="font-semibold text-orange-800">Active Ushers</h4>
                     <p className="text-orange-600 mt-2 font-medium">{activeUshers.length} ushers online</p>
+                    <p className="text-xs text-orange-500 mt-2">
+                      Ready for attendance tracking
+                    </p>
                   </div>
                 </div>
               </div>
@@ -633,7 +695,7 @@ const AdminDashboard: React.FC = () => {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Age Group</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
@@ -665,7 +727,6 @@ const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900 truncate">{member.phone || 'N/A'}</div>
-                            <div className="text-xs text-gray-500 font-mono truncate">{member.idNo || 'No ID'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full font-medium">

@@ -6,7 +6,6 @@ export interface Member {
   ageGroup: 'child' | 'youth' | 'adult';
   gender: 'male' | 'female';
   residence: string;
-  idNo?: string;
   phone?: string;
   createdAt: string;
 }
@@ -16,7 +15,6 @@ export interface CreateMemberData {
   ageGroup: 'child' | 'youth' | 'adult';
   gender: 'male' | 'female';
   residence: string;
-  idNo?: string;
   phone?: string;
 }
 

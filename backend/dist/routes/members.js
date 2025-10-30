@@ -4,41 +4,34 @@ import { members } from "../db/schema/index.js";
 import { eq, and, like, count, sql } from "drizzle-orm";
 import { z } from "zod";
 const router = Router();
-// Validation schemas
+// Validation schemas - REMOVED idNo completely
 const createMemberSchema = z.object({
     name: z.string().min(1, "Name is required"),
     ageGroup: z.enum(["child", "youth", "adult"]),
     gender: z.enum(["male", "female"]),
     residence: z.string().min(1, "Residence is required"),
-    idNo: z.string().optional(),
-    phone: z.string().optional(),
+    phone: z.string().optional().nullable(),
 }).refine((data) => {
-    // Youth and Adult require ID and Phone
+    // Youth and Adult require Phone only
     if (data.ageGroup === "youth" || data.ageGroup === "adult") {
-        return !!data.idNo && !!data.phone;
+        return !!data.phone;
     }
     return true;
 }, {
-    message: "ID Number and Phone are required for Youth and Adult members"
+    message: "Phone number is required for Youth and Adult members",
+    path: ["phone"]
 }).refine((data) => {
-    // Kenyan ID validation (8 digits)
-    if (data.idNo && data.ageGroup !== "child") {
-        return /^\d{8}$/.test(data.idNo);
-    }
-    return true;
-}, {
-    message: "ID Number must be 8 digits"
-}).refine((data) => {
-    // Kenyan phone validation (254XXXXXXXXX)
-    if (data.phone && data.ageGroup !== "child") {
+    // Kenyan phone validation (254XXXXXXXXX) - only for youth and adults
+    if (data.phone && (data.ageGroup === "youth" || data.ageGroup === "adult")) {
         return /^254\d{9}$/.test(data.phone);
     }
     return true;
 }, {
-    message: "Phone must be in format 254XXXXXXXXX"
+    message: "Phone must be in format 254XXXXXXXXX for Youth and Adult members",
+    path: ["phone"]
 });
 // =========================
-// GET ALL MEMBERS - FIXED
+// GET ALL MEMBERS
 // =========================
 router.get("/", async (req, res) => {
     try {
@@ -113,17 +106,7 @@ router.post("/", async (req, res) => {
                 errors: validationResult.error.issues
             });
         }
-        const { name, ageGroup, gender, residence, idNo, phone } = validationResult.data;
-        // Check for duplicate ID (if provided and for youth/adult)
-        if (idNo && (ageGroup === "youth" || ageGroup === "adult")) {
-            const existingWithId = await db
-                .select()
-                .from(members)
-                .where(eq(members.idNo, idNo));
-            if (existingWithId.length > 0) {
-                return res.status(400).json({ message: "ID Number already exists" });
-            }
-        }
+        const { name, ageGroup, gender, residence, phone } = validationResult.data;
         // Check for duplicate phone (if provided and for youth/adult)
         if (phone && (ageGroup === "youth" || ageGroup === "adult")) {
             const existingWithPhone = await db
@@ -134,7 +117,7 @@ router.post("/", async (req, res) => {
                 return res.status(400).json({ message: "Phone number already exists" });
             }
         }
-        // Insert member
+        // Insert member - NO ID NUMBER
         const [newMember] = await db
             .insert(members)
             .values({
@@ -142,7 +125,6 @@ router.post("/", async (req, res) => {
             ageGroup,
             gender,
             residence,
-            idNo: idNo || null,
             phone: phone || null,
         })
             .returning();
@@ -169,7 +151,7 @@ router.put("/:id", async (req, res) => {
                 errors: validationResult.error.issues
             });
         }
-        const { name, ageGroup, gender, residence, idNo, phone } = validationResult.data;
+        const { name, ageGroup, gender, residence, phone } = validationResult.data;
         // Check if member exists
         const existingMember = await db
             .select()
@@ -177,16 +159,6 @@ router.put("/:id", async (req, res) => {
             .where(eq(members.memberId, memberId));
         if (existingMember.length === 0) {
             return res.status(404).json({ message: "Member not found" });
-        }
-        // Check for duplicate ID (excluding current member)
-        if (idNo && (ageGroup === "youth" || ageGroup === "adult")) {
-            const existingWithId = await db
-                .select()
-                .from(members)
-                .where(and(eq(members.idNo, idNo), sql `${members.memberId} != ${memberId}`));
-            if (existingWithId.length > 0) {
-                return res.status(400).json({ message: "ID Number already exists" });
-            }
         }
         // Check for duplicate phone (excluding current member)
         if (phone && (ageGroup === "youth" || ageGroup === "adult")) {
@@ -198,7 +170,7 @@ router.put("/:id", async (req, res) => {
                 return res.status(400).json({ message: "Phone number already exists" });
             }
         }
-        // Update member
+        // Update member - NO ID NUMBER
         const [updatedMember] = await db
             .update(members)
             .set({
@@ -206,7 +178,6 @@ router.put("/:id", async (req, res) => {
             ageGroup,
             gender,
             residence,
-            idNo: idNo || null,
             phone: phone || null,
         })
             .where(eq(members.memberId, memberId))
@@ -222,7 +193,7 @@ router.put("/:id", async (req, res) => {
     }
 });
 // =========================
-// DELETE MEMBER (SOFT DELETE - Just remove from active queries)
+// DELETE MEMBER
 // =========================
 router.delete("/:id", async (req, res) => {
     try {
@@ -235,8 +206,6 @@ router.delete("/:id", async (req, res) => {
         if (existingMember.length === 0) {
             return res.status(404).json({ message: "Member not found" });
         }
-        // In a real system, you might add an 'active' field for soft delete
-        // For now, we'll physically delete since requirements mention soft delete but schema doesn't have active field
         await db
             .delete(members)
             .where(eq(members.memberId, memberId));

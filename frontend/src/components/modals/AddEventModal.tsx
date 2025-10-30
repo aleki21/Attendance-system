@@ -59,8 +59,14 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onSucces
     onClose();
   };
 
-  // Set minimum date to today
-  const today = new Date().toISOString().split('T')[0];
+  // FIXED: Get today's date in Kenya time (UTC+3)
+  const getTodayInKenya = () => {
+    const now = new Date();
+    const kenyaTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+    return kenyaTime.toISOString().split('T')[0];
+  };
+
+  const today = getTodayInKenya();
 
   if (!isOpen) return null;
 
@@ -140,7 +146,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onSucces
               min={today}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <p className="text-xs text-gray-500 mt-1">Events cannot be created for past dates</p>
+            <p className="text-xs text-gray-500 mt-1">Events cannot be created for past dates (Kenya time)</p>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

@@ -79,4 +79,12 @@ export const attendanceService = {
     const response = await api.get<{ todayStats: TodayStats[] }>('/attendance/today');
     return response.data;
   },
+
+  exportEventReport: async (eventId: number, format: 'csv' | 'pdf'): Promise<Blob> => {
+    const response = await api.get(`/attendance/events/${eventId}/export`, {
+      params: { format },
+      responseType: 'blob'
+    });
+    return response.data;
+  },
 };

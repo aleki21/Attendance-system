@@ -96,8 +96,7 @@ const UsherDashboard: React.FC = () => {
 
   const filteredMembers = allMembers.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.residence.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.idNo?.includes(searchTerm);
+      member.residence.toLowerCase().includes(searchTerm.toLowerCase());
     
     const isPresent = attendanceMarked.has(member.memberId);
     
@@ -401,7 +400,7 @@ const UsherDashboard: React.FC = () => {
                     <tr>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Age Group</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
@@ -437,7 +436,6 @@ const UsherDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{member.phone || 'N/A'}</div>
-                            <div className="text-xs text-gray-500 font-mono">{member.idNo || 'No ID'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {isMarked ? (

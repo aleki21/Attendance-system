@@ -12,7 +12,6 @@ interface MemberFormData {
   ageGroup: 'child' | 'youth' | 'adult';
   gender: 'male' | 'female';
   residence: string;
-  idNo: string;
   phone: string;
 }
 
@@ -22,7 +21,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onSucc
     ageGroup: 'adult',
     gender: 'male',
     residence: '',
-    idNo: '',
     phone: ''
   });
   const [loading, setLoading] = useState(false);
@@ -45,21 +43,30 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onSucc
       // Import memberService here to avoid circular dependencies
       const { memberService } = await import('../../services/memberService');
       
-      // Prepare data for submission
+      // Prepare data for submission - NO ID NUMBER
       const submitData = {
         name: formData.name,
         ageGroup: formData.ageGroup,
         gender: formData.gender,
         residence: formData.residence,
-        idNo: formData.idNo || undefined,
         phone: formData.phone || undefined
       };
+
+      console.log('Submitting member data:', submitData);
 
       await memberService.createMember(submitData);
       onSuccess();
       handleClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create member');
+      console.error('Create member error details:', err);
+      if (err.response?.data?.errors) {
+        const errorMessages = err.response.data.errors.map((error: any) => 
+          `${error.path?.join('.')}: ${error.message}`
+        ).join(', ');
+        setError(`Validation failed: ${errorMessages}`);
+      } else {
+        setError(err.response?.data?.message || 'Failed to create member');
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +78,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onSucc
       ageGroup: 'adult',
       gender: 'male',
       residence: '',
-      idNo: '',
       phone: ''
     });
     setError(null);
@@ -174,80 +180,40 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onSucc
             />
           </div>
 
-          {isYouthOrAdult && (
-            <>
-              <div>
-                <label htmlFor="idNo" className="block text-sm font-medium text-gray-700 mb-1">
-                  ID Number *
-                </label>
-                <input
-                  type="text"
-                  id="idNo"
-                  name="idNo"
-                  required={isYouthOrAdult}
-                  value={formData.idNo}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter 8-digit ID number"
-                  pattern="\d{8}"
-                  maxLength={8}
-                />
-                <p className="text-xs text-gray-500 mt-1">Must be 8 digits</p>
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  required={isYouthOrAdult}
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="254XXXXXXXXX"
-                  pattern="254\d{9}"
-                  maxLength={12}
-                />
-                <p className="text-xs text-gray-500 mt-1">Format: 254XXXXXXXXX</p>
-              </div>
-            </>
-          )}
-
-          {!isYouthOrAdult && (
-            <>
-              <div>
-                <label htmlFor="idNo" className="block text-sm font-medium text-gray-700 mb-1">
-                  ID Number (Optional)
-                </label>
-                <input
-                  type="text"
-                  id="idNo"
-                  name="idNo"
-                  value={formData.idNo}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Optional for children"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number (Optional)
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Optional for children"
-                />
-              </div>
-            </>
+          {isYouthOrAdult ? (
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number *
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                required={isYouthOrAdult}
+                value={formData.phone}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="254XXXXXXXXX"
+                pattern="254\d{9}"
+                maxLength={12}
+              />
+              <p className="text-xs text-gray-500 mt-1">Format: 254XXXXXXXXX</p>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number (Optional)
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Optional for children"
+              />
+            </div>
           )}
 
           <div className="flex justify-end space-x-3 pt-4">

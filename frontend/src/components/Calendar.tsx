@@ -1,5 +1,6 @@
+// Calendar.tsx - Updated version
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Download, Users, Clock, Loader } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Download, Users, Clock, Loader, Eye } from 'lucide-react';
 import type { Event } from '../services/eventService';
 import { attendanceService } from '../services/attendanceService';
 import { memberService } from '../services/memberService';
@@ -12,7 +13,7 @@ interface EventDetailsModalProps {
   event: Event | null;
   isOpen: boolean;
   onClose: () => void;
-  onExportAttendance: (event: Event) => void;
+  onExportAttendance: (event: Event, format: 'csv' | 'pdf') => void;
   exportLoading: boolean;
 }
 
@@ -33,18 +34,26 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     day: 'numeric'
   });
 
+  const isPastEvent = new Date(event.date) < new Date();
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-xl">
-              <CalendarIcon className="h-6 w-6 text-blue-600" />
+            <div className={`p-2 rounded-xl ${
+              isPastEvent ? 'bg-green-100' : 'bg-blue-100'
+            }`}>
+              <CalendarIcon className={`h-6 w-6 ${
+                isPastEvent ? 'text-green-600' : 'text-blue-600'
+              }`} />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Event Details</h2>
-              <p className="text-gray-500 text-sm">View event information and attendance</p>
+              <p className="text-gray-500 text-sm">
+                {isPastEvent ? 'Past Event - Reports Available' : 'Upcoming Event'}
+              </p>
             </div>
           </div>
           <button
@@ -89,28 +98,65 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {isPastEvent && (
+                <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-xl">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Past Event - Reports Available</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h4 className="font-medium text-blue-800 mb-2">Quick Actions</h4>
-            <p className="text-sm text-blue-700 mb-3">
-              Download the attendance report for this event in CSV format.
-            </p>
-            <button
-              onClick={() => onExportAttendance(event)}
-              disabled={exportLoading}
-              className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center font-medium disabled:opacity-50"
-            >
-              {exportLoading ? (
-                <Loader className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              {exportLoading ? 'Exporting...' : 'Export Attendance Report'}
-            </button>
-          </div>
+          {isPastEvent && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <h4 className="font-medium text-green-800 mb-2">Export Attendance Report</h4>
+              <p className="text-sm text-green-700 mb-3">
+                Download the complete attendance report for this event.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onExportAttendance(event, 'csv')}
+                  disabled={exportLoading}
+                  className="bg-green-600 text-white px-4 py-3 rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center font-medium disabled:opacity-50"
+                >
+                  {exportLoading ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  CSV
+                </button>
+                <button
+                  onClick={() => onExportAttendance(event, 'pdf')}
+                  disabled={exportLoading}
+                  className="bg-red-600 text-white px-4 py-3 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center font-medium disabled:opacity-50"
+                >
+                  {exportLoading ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  PDF
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isPastEvent && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center mb-2">
+                <Eye className="h-5 w-5 text-blue-600 mr-2" />
+                <h4 className="font-medium text-blue-800">Upcoming Event</h4>
+              </div>
+              <p className="text-sm text-blue-700">
+                Attendance reports will be available after the event date.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -137,15 +183,11 @@ const Calendar: React.FC<CalendarProps> = ({ events }) => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
-    // First day of the month
     const firstDay = new Date(year, month, 1);
-    // Last day of the month
     const lastDay = new Date(year, month + 1, 0);
-    // Start from the first Sunday of the calendar view
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - startDate.getDay());
     
-    // End at the last Saturday of the calendar view
     const endDate = new Date(lastDay);
     endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
     
@@ -190,64 +232,75 @@ const Calendar: React.FC<CalendarProps> = ({ events }) => {
     setSelectedEvent(null);
   };
 
-  const handleExportAttendance = async (event: Event) => {
+  const handleExportAttendance = async (event: Event, format: 'csv' | 'pdf') => {
     try {
       setExportLoading(true);
       
-      // Get attendance data for this event
-      const attendanceResponse = await attendanceService.getEventAttendance(event.eventId);
-      const attendanceData = attendanceResponse.attendance || [];
+      if (format === 'csv') {
+        // Get attendance data for this event
+        const attendanceResponse = await attendanceService.getEventAttendance(event.eventId);
+        const attendanceData = attendanceResponse.attendance || [];
 
-      // Get all members to include absent members in the report
-      const membersResponse = await memberService.getMembers({ page: 1, limit: 1000 });
-      const allMembers = membersResponse.members;
+        // Get all members to include absent members in the report
+        const membersResponse = await memberService.getMembers({ page: 1, limit: 1000 });
+        const allMembers = membersResponse.members;
 
-      // Create a map of present members for quick lookup
-      const presentMembersMap = new Map();
-      attendanceData.forEach(record => {
-        if (record.attendance.status === 'present') {
-          presentMembersMap.set(record.member.memberId, record);
-        }
-      });
+        // Create a map of present members for quick lookup
+        const presentMembersMap = new Map();
+        attendanceData.forEach(record => {
+          if (record.attendance.status === 'present') {
+            presentMembersMap.set(record.member.memberId, record);
+          }
+        });
 
-      // Generate CSV content
-      const headers = ['Name', 'Age Group', 'Gender', 'Residence', 'ID Number', 'Status', 'Marked At'];
-      
-      const csvRows = allMembers.map(member => {
-        const attendanceRecord = presentMembersMap.get(member.memberId);
-        const status = attendanceRecord ? 'Present' : 'Absent';
-        const markedAt = attendanceRecord ? 
-          new Date(attendanceRecord.attendance.markedAt).toLocaleString() : 'N/A';
+        // Generate CSV content
+        const headers = ['Name', 'Age Group', 'Gender', 'Residence', 'Status', 'Marked At'];
+        
+        const csvRows = allMembers.map(member => {
+          const attendanceRecord = presentMembersMap.get(member.memberId);
+          const status = attendanceRecord ? 'Present' : 'Absent';
+          const markedAt = attendanceRecord ? 
+            new Date(attendanceRecord.attendance.markedAt).toLocaleString() : 'N/A';
 
-        return [
-          `"${member.name}"`,
-          member.ageGroup,
-          member.gender,
-          `"${member.residence}"`,
-          member.idNo || 'N/A',
-          status,
-          markedAt
-        ];
-      });
+          return [
+            `"${member.name}"`,
+            member.ageGroup,
+            member.gender,
+            `"${member.residence}"`,
+            status,
+            markedAt
+          ];
+        });
 
-      const csvContent = [
-        headers.join(','),
-        ...csvRows.map(row => row.join(','))
-      ].join('\n');
+        const csvContent = [
+          headers.join(','),
+          ...csvRows.map(row => row.join(','))
+        ].join('\n');
 
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendance-${event.name}-${event.date}.csv`.replace(/[^a-zA-Z0-9-_]/g, '_');
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      // Close modal after successful export
-      handleCloseModal();
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance-${event.name}-${event.date}.csv`.replace(/[^a-zA-Z0-9-_]/g, '_');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else if (format === 'pdf') {
+        // For PDF export, you would typically call your backend service
+        // This is a placeholder - implement based on your backend API
+        const response = await attendanceService.exportEventReport(event.eventId, 'pdf');
+        const blob = new Blob([response], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance-report-${event.name}-${event.date}.pdf`.replace(/[^a-zA-Z0-9-_]/g, '_');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
 
     } catch (error) {
       console.error('Failed to export attendance:', error);
@@ -313,7 +366,9 @@ const Calendar: React.FC<CalendarProps> = ({ events }) => {
                 key={index}
                 className={`min-h-24 p-2 border border-gray-200 rounded-xl ${
                   day.isCurrentMonth ? 'bg-white' : 'bg-gray-50'
-                } ${day.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
+                } ${day.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''} ${
+                  day.date.getTime() < new Date().setHours(0,0,0,0) ? 'opacity-90' : ''
+                }`}
               >
                 <div className="flex justify-between items-start mb-1">
                   <span
@@ -321,7 +376,9 @@ const Calendar: React.FC<CalendarProps> = ({ events }) => {
                       day.isToday
                         ? 'bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center'
                         : day.isCurrentMonth
-                        ? 'text-gray-900'
+                        ? day.date.getTime() < new Date().setHours(0,0,0,0)
+                          ? 'text-gray-600' 
+                          : 'text-gray-900'
                         : 'text-gray-400'
                     }`}
                   >
@@ -336,25 +393,53 @@ const Calendar: React.FC<CalendarProps> = ({ events }) => {
 
                 {/* Events */}
                 <div className="space-y-1 max-h-20 overflow-y-auto">
-                  {day.events.map(event => (
-                    <button
-                      key={event.eventId}
-                      onClick={() => handleEventClick(event)}
-                      className={`w-full text-left text-xs p-1 rounded transition-colors ${
-                        event.eventType === 'sunday_service'
-                          ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                          : 'bg-green-100 text-green-800 hover:bg-green-200'
-                      }`}
-                    >
-                      <div className="font-medium truncate">{event.name}</div>
-                      <div className="text-xs opacity-75">
-                        {event.eventType === 'sunday_service' ? 'Service' : 'Event'}
-                      </div>
-                    </button>
-                  ))}
+                  {day.events.map(event => {
+                    const isPastEvent = new Date(event.date) < new Date();
+                    return (
+                      <button
+                        key={event.eventId}
+                        onClick={() => handleEventClick(event)}
+                        className={`w-full text-left text-xs p-1 rounded transition-colors ${
+                          isPastEvent
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-200'
+                            : event.eventType === 'sunday_service'
+                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                            : 'bg-purple-100 text-purple-800 hover:bg-purple-200'
+                        }`}
+                      >
+                        <div className="font-medium truncate">{event.name}</div>
+                        <div className="flex justify-between text-xs opacity-75">
+                          <span>
+                            {event.eventType === 'sunday_service' ? 'Service' : 'Event'}
+                          </span>
+                          {isPastEvent && (
+                            <span className="font-medium">Report</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
+              <span className="text-gray-600">Past Events (Reports Available)</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-blue-100 border border-blue-300 rounded"></div>
+              <span className="text-gray-600">Sunday Services</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></div>
+              <span className="text-gray-600">Custom Events</span>
+            </div>
           </div>
         </div>
       </div>

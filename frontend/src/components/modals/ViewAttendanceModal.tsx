@@ -178,8 +178,7 @@ const ViewAttendanceModal: React.FC<ViewAttendanceModalProps> = ({ isOpen, onClo
     )
   ).filter(member =>
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.residence.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.idNo?.toLowerCase().includes(searchTerm.toLowerCase())
+    member.residence.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!isOpen || !event) return null;
@@ -390,9 +389,6 @@ const ViewAttendanceModal: React.FC<ViewAttendanceModalProps> = ({ isOpen, onClo
                                 <p className="text-sm text-red-700 capitalize">
                                   {member.ageGroup} • {member.gender} • {member.residence}
                                 </p>
-                                {member.idNo && (
-                                  <p className="text-xs text-red-600 font-mono">ID: {member.idNo}</p>
-                                )}
                               </div>
                               <div className="flex items-center space-x-2 shrink-0 ml-2">
                                 {isEditing ? (
